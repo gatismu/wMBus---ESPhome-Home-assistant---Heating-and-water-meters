@@ -1,0 +1,496 @@
+## ---------------------------------------------------------------------------
+## WMBUS METER az-delivery-devkit-v4 + CC1101 for dme07
+## Hardware: ESP32-S3 Development Board 2.4G Wifi Module for Arduino ESP IDF ESP32-S3-WROOM-1 N16R8 
+## https://www.aliexpress.com/item/1005006266375800.html?spm=a2g0o.order_list.order_list_main.65.5de01802OHyFtG
+## 
+##  1. uses the latest wmbusmeter component from github
+##
+## ---------------------------------------------------------------------------
+substitutions:
+
+  ## device settings
+  hostname: "water-and-thermal-energy"
+  friendly_name: "my water meters & thermal energy meter"
+  device_description: "ESP32, CCC1101 - my water meters & thermal energy meter"
+
+  # The format of the name should be author_name.project_name.
+  projectname: "my.thermal-energy"
+  appversion: "2.0.7"
+  hardware: "ESP32_S3"
+  location: "Labor"
+
+   
+  ## logger settings
+  log_level: "DEBUG"  # not that logging need memory, so in production mode use "WARN"
+  log_wmbus: "DEBUG"  # Loglevel for wmbus meters component
+  log_baudrate: "0" # 0 disable uart logger messages
+
+## ------------------------------------------------------------------
+## HARDWARE az-delivery-devkit-v4
+## https://esphome.io/components/esp32
+## ------------------------------------------------------------------
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: arduino
+
+## ----------------------------------------------------------------
+## APPLICATION ESPHOME
+## ----------------------------------------------------------------
+esphome:
+  name: ${hostname}
+  build_path: ./build/${hostname}
+  comment: ${device_description}
+  on_boot:
+    priority: 600
+    then:
+      - logger.log:
+          level: info
+          format: "BOOTMESSAGE: device ${hostname} API is connected, Device ready!"
+      - globals.set:
+          id: boot_counter
+          value: !lambda "return id(boot_counter)+=1;"
+      - component.update: bootcounter
+
+  on_shutdown:
+    then:
+      - logger.log:
+          level: ERROR
+          tag: "system"
+          format: "BOOTMESSAGE: device ${hostname} is down!"
+
+  project:
+    # This allows creators to add the project name and version to the compiled code.
+    # It is currently only exposed via the logger, mDNS and the device_info response
+    # via the native API. The format of the name should be author_name.project_name.
+    name: ${projectname}
+    version: ${appversion}
+
+  area: ${location}
+  platformio_options: {}
+  includes: []
+  libraries: []
+  name_add_mac_suffix: false
+  # minimum version of ESPHome required to compile.
+  min_version: 2024.6.6
+
+## ----------------------------------------------------------------
+## EXTERNAL COMPONENTS
+## ----------------------------------------------------------------
+external_components:
+
+  # uses the latest version from SzczepanLeon
+  # https://github.com/SzczepanLeon/esphome-components
+  # You can make ESPHome check the repository every time by setting this option to 0s
+  - source: github://SzczepanLeon/esphome-components@main
+    refresh: 0s
+    components: [wmbus]
+
+## ----------------------------------------------------------------
+## GLOBALS VARIABLES
+## ----------------------------------------------------------------
+globals:
+
+  - id: boot_counter
+    type: int
+    restore_value: yes
+    initial_value: "0"
+
+  - id: last_value
+    type: float
+    restore_value: yes
+    initial_value: "0.00"
+
+## ------------------------------------------------------------------
+## COMPONENT LOGGER
+## https://esphome.io/components/logger.html
+## ------------------------------------------------------------------
+logger:
+  id: appslogger
+  level: ${log_level}
+  baud_rate: ${log_baudrate}
+  logs:
+    wmbus: ${log_wmbus}
+    wMBus-lib: ${log_wmbus}
+    sensor: WARN
+    sensor.filter: WARN
+    text_sensor: WARN
+    api.service: ERROR
+    json: ERROR
+    mqtt: WARN
+    scheduler: ERROR
+    internal_temperature: ERROR
+    wifi: WARN
+    component: ERROR
+    api: WARN
+
+## ------------------------------------------------------------------
+## COMPONENT WIFI
+## https://esphome.io/components/wifi.html
+## ------------------------------------------------------------------
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  manual_ip:
+    static_ip: 192.168.1.55
+    gateway: 192.168.1.1
+    subnet: 255.255.255.0
+    dns1: 192.168.1.1
+    dns2: 8.8.8.8
+
+  on_connect:
+    - logger.log:
+        level: WARN
+        tag: "WIFI-INFO"
+        format: "Device has connected to wifi"
+
+  on_disconnect:
+    - logger.log:
+        level: WARN
+        tag: "WIFI-INFO"
+        format: "Client disconnected from wifi, try recconect"
+
+## ------------------------------------------------------------------
+## COMPONENT Captive Portal
+## ------------------------------------------------------------------
+## The captive portal component in ESPHome is a fallback mechanism
+## for when connecting to the configured WiFi fails.
+## https://esphome.io/components/captive_portal.html
+## ------------------------------------------------------------------
+captive_portal:
+
+## ---------------------------------------------------
+## mDNS Component
+## https://esphome.io/components/mdns.html
+## ---------------------------------------------------
+mdns:
+  # Both Home Assistant and the ESPHome dashboard use mDNS to identify the IP address
+  # of all ESPHome nodes on the network. If mDNS is disabled, they will no longer
+  # be able to automatically find your devices.
+  disabled: false
+
+## ------------------------------------------------------------------
+## COMPONENT Over-the-Air Updates
+## https://esphome.io/components/ota/#over-the-air-updates
+## ------------------------------------------------------------------
+ota:
+  platform: esphome
+  password: !secret ota_pswd
+  on_begin:
+    then:
+      - logger.log:
+          format: "OTA Start"
+          tag: "OTA"
+          level: WARN
+  on_progress:
+    then:
+      - logger.log:
+          level: WARN
+          tag: "OTA"
+          format: "OTA progress %0.1f%%"
+          args: ["x"]
+  on_end:
+    then:
+      - logger.log:
+          format: "OTA End"
+          tag: "OTA"
+          level: WARN
+  on_error:
+    then:
+      - logger.log:
+          format: "OTA update error %d"
+          tag: "OTA"
+          level: ERROR
+          args: ["x"]
+
+## ------------------------------------------------------------------
+## COMPONENT WEBSERVER
+## The web_server component creates a simple web server on the node
+## that can be accessed through any browser and a simple REST API.
+## https://esphome.io/components/web_server.html
+## ------------------------------------------------------------------
+web_server:
+  port: 80
+  version: 3
+  local: false
+  # use the local www.js, no internet required !
+  # Copy https://oi.esphome.io/v3/www.js to a v3 folder 
+  # curl https://oi.esphome.io/v3/www.js > /var/www/esphome/v3/www.js
+  # to your local webserver.
+  js_url: "http://192.168.1.122:5050/v3/www.js"
+
+## ---------------------------------------------------
+## Home Assistant API COMPONENT
+## ---------------------------------------------------
+api:
+  id: scanner_wmbus_esp32
+  port: 6053
+  reboot_timeout: 0s
+
+## ---------------------------------------------------
+## SNTP COMPONENT
+## ---------------------------------------------------
+time:
+  - platform: sntp
+    id: time_sntp
+    timezone: Europe/Riga
+    servers:
+      - 0.at.pool.ntp.org
+      - 0.pool.ntp.org
+      - 1.pool.ntp.org
+    on_time_sync:
+      then:
+        - logger.log:
+            tag: "system"
+            level: INFO
+            format: "Synchronized sntp clock"
+
+
+## ------------------------------------------------------------------
+##           WMBUS CC1101 --> ESP32 az-delivery-devkit-v4
+## ------------------------------------------------------------------
+
+wmbus:
+  all_drivers: True
+  log_all: True
+  mosi_pin: GPIO11    ## SI:   braun
+  miso_pin: GPIO13    ## SO:   grün
+  clk_pin: GPIO12     ## SCLK: violett
+  cs_pin: GPIO10      ## CSN:  orange
+  gdo0_pin: GPIO8  # SDA  Clock output. High Impedance !
+  gdo2_pin: GPIO9  # SCL  FIFO status signals. High Impedance !
+
+
+## ---------------------------------------------------
+## SWITCHES, BUTTONS
+## ---------------------------------------------------
+button:
+  # reset boot counter value
+  - platform: template
+    name: Device Boot Counter reset
+    entity_category: "config"
+    icon: mdi:restart
+    on_press:
+      then:
+        - lambda: |-
+            id(boot_counter) = 0;
+            id(bootcounter).publish_state(id(boot_counter));
+        - logger.log:
+            level: WARN
+            tag: "system"
+            format: "${hostname} reset boot counter o.k!"
+        - component.update: bootcounter
+
+  - platform: restart
+    name: "Device Restart"
+    id: restart_switch
+    icon: mdi:restart
+    entity_category: "config"
+    disabled_by_default: false
+
+## ---------------------------------------------------
+## SENSORS
+## ---------------------------------------------------
+sensor:
+  - platform: wmbus
+    meter_id: 0x051XXXXX
+    type: hydrocalm3
+    sensors:
+      - name: "Total Heating kWh"
+        id: "total_heating_kwh"
+        field: "total_heating"
+        accuracy_decimals: 3
+        unit_of_measurement: "kwh"
+        device_class: "energy"
+        state_class: "total_increasing"
+        icon: "mdi:water"
+
+#      - name: "Heating LQI"
+#        id: "wmbus_cc1101_lqi_heating"
+#        unit_of_measurement: "lqi"
+#        icon: mdi:rss
+#        entity_category: "diagnostic"
+
+      - name: "Heating RSSI"
+        id: "wmbus_cc1101_rssi_heating"
+        field: "rssi"
+        accuracy_decimals: 0
+        unit_of_measurement: "dBm"
+        device_class: "signal_strength"
+        state_class: "measurement"
+        entity_category: "diagnostic"
+        icon: mdi:rss
+        filters:
+          - lambda: return min(max(2 * (x + 100.0), 0.0), 100.0);
+
+      - name: "Total Heating m³"
+        id: "total_heating_m3"
+        field: "total_heating"
+        accuracy_decimals: 3
+        unit_of_measurement: "m³"
+        device_class: "water"
+        state_class: "total_increasing"
+        icon: "mdi:water"
+
+#    add_prefix: false
+      # update and calulatet all watermeter data values
+        on_value:
+          then:
+            - lambda: |-
+                ESP_LOGI("wmbus", "Total heating kWh: %.3f, last value: %.3f", id(total_heating_kwh).state, id(last_value));
+                id(last_value)=id(total_heating_kwh).state;
+            - text_sensor.template.publish:
+                id: thermal_kWh_lastupdate
+                state: !lambda return id(time_sntp).now().strftime("%Y-%m-%dT%H:%M:%S %Z");
+
+##cold w
+  - platform: wmbus
+    meter_id: 0x03XXXXXX
+    type: bmeters
+    sensors:
+      - name: "Watermeter LQI cold"
+        id: "wmbus_cc1101_lqi_cold"
+        unit_of_measurement: "lqi"
+        icon: "mdi:rss"
+        entity_category: "diagnostic"
+      - name: "watermeter RSSI cold"
+        id: "wmbus_cc1101_rssi_cold"
+        field: "rssi"
+        accuracy_decimals: 0
+        unit_of_measurement: "dBm"
+        device_class: "signal_strength"
+        state_class: "measurement"
+        entity_category: "diagnostic"
+        icon: mdi:rss
+        filters:
+        - lambda: return min(max(2 * (x + 100.0), 0.0), 100.0);
+      - name: "Total water cold"
+        id: "waterdisplay"
+        field: "total"
+        accuracy_decimals: 3
+        unit_of_measurement: "m³"
+        device_class: "water"
+        state_class: "total_increasing"
+        icon: "mdi:water"
+        on_value:
+          then:
+            - lambda: |-
+                ESP_LOGI("wmbus", "Water Display value: %.3f, last value: %.3f", id(waterdisplay).state, id(last_value));
+                id(last_value)=id(waterdisplay).state;
+            - text_sensor.template.publish:
+                id: watermeter_lastupdate_coldwater
+                state: !lambda return id(time_sntp).now().strftime("%Y-%m-%dT%H:%M:%S %Z");
+
+
+##warm w
+  - platform: wmbus
+    meter_id: 0x032XXXXX
+    type: bmeters
+    sensors:
+      - name: "Watermeter LQI warm"
+        id: "wmbus_cc1101_lqi_warm"
+        unit_of_measurement: "lqi"
+        icon: mdi:rss
+        entity_category: "diagnostic"
+      - name: "watermeter RSSI warm"
+        id: "wmbus_cc1101_rssi_warm"
+        field: "rssi"
+        accuracy_decimals: 0
+        unit_of_measurement: "dBm"
+        device_class: "signal_strength"
+        state_class: "measurement"
+        entity_category: "diagnostic"
+        icon: "mdi:rss"
+        filters:
+        - lambda: return min(max(2 * (x + 100.0), 0.0), 100.0);
+      - name: "Total water warm"
+        id: "waterdisplay2"
+        field: "total"
+        accuracy_decimals: 3
+        unit_of_measurement: "m³"
+        device_class: "water"
+        state_class: "total_increasing"
+        icon: "mdi:water"
+        on_value:
+          then:
+            - lambda: |-
+                ESP_LOGI("wmbus", "Water Display value: %.3f, last value: %.3f", id(waterdisplay2).state, id(last_value));
+                id(last_value)=id(waterdisplay2).state;
+            - text_sensor.template.publish:
+                id: watermeter_lastupdate_warmwater
+                state: !lambda return id(time_sntp).now().strftime("%Y-%m-%dT%H:%M:%S %Z");
+
+  # device uptime in hours
+  - platform: uptime
+    name: "Device Uptime"
+    id: "device_uptime"
+    icon: "mdi:clock-start"
+    filters:
+      - lambda: return x / 3600;
+    unit_of_measurement: "h"
+    entity_category: "diagnostic"
+    state_class: "measurement"
+    accuracy_decimals: 2
+  - platform: "wifi_signal"
+    id: "wifisignal"
+    name: "Device WiFi Signal"
+    icon: "mdi:wifi-strength-1"
+    update_interval: "60s"
+    entity_category: "diagnostic"
+    disabled_by_default: "true"
+    force_update: "false"
+    unit_of_measurement: "dBm"
+    accuracy_decimals: 0
+    device_class: "signal_strength"
+    state_class: "measurement"
+
+  # device boot counter
+  - platform: template
+    name: Device Boot counter
+    id: bootcounter
+    icon: mdi:counter
+    accuracy_decimals: 0
+    state_class: "measurement"
+    entity_category: "diagnostic"
+    lambda: return (id(boot_counter));
+
+## ---------------------------------------------------
+## TEXT SENSOREN
+## https://esphome.io/components/text_sensor/
+## ---------------------------------------------------
+text_sensor:
+
+  # waterdisplay timestamp last update (updated by id: "waterdisplay")
+  - platform: template
+    name: Timestamp energy meter
+    id: thermal_kWh_lastupdate
+    icon: mdi:clock-start
+    entity_category: "diagnostic"
+
+# waterdisplay timestamp last update (updated by id: "waterdisplay")
+  - platform: template
+    name: Timestamp  Coldwater
+    id: watermeter_lastupdate_coldwater
+    icon: mdi:clock-start
+    entity_category: "diagnostic"
+    web_server_sorting_weight: 10
+
+  - platform: template
+    name: Timestamp Warmwater
+    id: watermeter_lastupdate_warmwater
+    icon: mdi:clock-start
+    entity_category: "diagnostic"
+    web_server_sorting_weight: 10
+
+  # installed esphome version
+  - platform: version
+    name: ESPHome Version
+    id: eshome_version
+    hide_timestamp: true
+    disabled_by_default: true
+    icon: mdi:information-box-outline
+
+## E.O.F
+
+    
