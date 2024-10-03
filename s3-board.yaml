@@ -329,7 +329,7 @@ sensor:
         field: "total_heating"
         accuracy_decimals: 3
         unit_of_measurement: "m³"
-        device_class: "water"
+        device_class: "energy"
         state_class: "total_increasing"
         icon: "mdi:water"
 
@@ -347,13 +347,13 @@ sensor:
 ##cold w
   - platform: wmbus
     meter_id: 0x03XXXXXX
-    type: bmeters
+    type: hydrodigit
     sensors:
-      - name: "Watermeter LQI cold"
-        id: "wmbus_cc1101_lqi_cold"
-        unit_of_measurement: "lqi"
-        icon: "mdi:rss"
-        entity_category: "diagnostic"
+#      - name: "Watermeter LQI cold"
+#        id: "wmbus_cc1101_lqi_cold"
+#        unit_of_measurement: "lqi"
+#        icon: "mdi:rss"
+#        entity_category: "diagnostic"
       - name: "watermeter RSSI cold"
         id: "wmbus_cc1101_rssi_cold"
         field: "rssi"
@@ -386,13 +386,13 @@ sensor:
 ##warm w
   - platform: wmbus
     meter_id: 0x032XXXXX
-    type: bmeters
+    type: hydrodigit
     sensors:
-      - name: "Watermeter LQI warm"
-        id: "wmbus_cc1101_lqi_warm"
-        unit_of_measurement: "lqi"
-        icon: mdi:rss
-        entity_category: "diagnostic"
+ #     - name: "Watermeter LQI warm"
+ #       id: "wmbus_cc1101_lqi_warm"
+ #       unit_of_measurement: "lqi"
+ #       icon: mdi:rss
+ #       entity_category: "diagnostic"
       - name: "watermeter RSSI warm"
         id: "wmbus_cc1101_rssi_warm"
         field: "rssi"
