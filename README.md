@@ -17,6 +17,9 @@ https://www.aliexpress.com/item/32879437042.html?spm=a2g0o.order_list.order_list
 
 Seems memory size is OK, setup works stable for few days!
 
+![image](https://github.com/user-attachments/assets/356cac21-5e44-4cc9-afef-49ea2867b31d)
+
+
 code adjusted/combinated from:
 
 https://github.com/SzczepanLeon/esphome-components
